@@ -1,0 +1,11 @@
+--- # Internet Workers Config
+- in_workers: &id001
+    num_of_workers: 1
+
+--- # Database Workers Config
+- db_workers: &id002
+    num_of_workers: 1
+
+--- # Orchestrator Config
+- orchestrator: &id003
+    num_of_workers: 1
