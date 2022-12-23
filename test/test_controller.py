@@ -11,7 +11,7 @@ class TestController(unittest.TestCase):
     '''
     A set of tests for the Controller class.
 
-    Parameters
+    Parameters:
     ----------
     unittest.TestCase : from unittest
         Provides the Unit Test Framework
