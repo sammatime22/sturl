@@ -1,17 +1,10 @@
-# Config parameters for STURL
-# sammatime22, 2022
---- # Internet Workers Config
-- in_workers: &id001
-    num_of_workers: 1
+# Sample parameters for STURL
+# sammatime22, 2024
+# Data Workers Config
+data_worker: &id001
+  num_of_workers: 10
 
---- # Database Workers Config
-- db_workers: &id002
-    num_of_workers: 2
-
---- # Orchestrator Config
-- orchestrator: &id003
-    num_of_workers: 1
-
---- # Controller Config
-- controller: &id004
-    timeout: 60 # 60s timeout
+# Stomp Config
+stomp:
+  user: 'test'
+  password: 'abcd'

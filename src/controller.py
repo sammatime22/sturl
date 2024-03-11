@@ -1,25 +1,33 @@
 # This will talk with the remainder of the application
-# sammatime22, 2022
+# sammatime22, 2024
 import json
 import uuid
-import time
 
 
-class Controller:
+class Controller():
+    '''
+    This class takes in well formatted commands from the interface, and utilizes
+    the remainder of the resources in the backend via various means.
+    '''
 
+    RESULTS = "results"
+
+    # A 1s iterator, to not be overwritten
     ITERATOR = 1
     
-    MAX_ITERATIONS = 60 # default is 60x
+    # default is 60x, or 60s
+    MAX_ITERATIONS = 60 
     
-    SLEEP = 1 # default is 1s
+    # default is 1s
+    SLEEP = 1 
 
-    acquired_messages = []
-
-    stomp_conn = None
-
+    # Connection to MariaDB
     mariadb_conn = None
 
-    def __init__(self, max_iterations, stomp_conn, mariadb_conn):
+    # Connection to MongoDB
+    mongo_db_conn = None
+
+    def __init__(self, mariadb_conn, mongo_db_conn):
         '''
         Initializes the Controller.
 
@@ -27,23 +35,13 @@ class Controller:
         ----------
         max_iterations : int
             The maximum iterations to be used when awaiting a message.
-        stomp_conn : stomp.Connection
-            The connection to STOMP to be used by the Controller.
         mariadb_conn : mariadb.connect
             The connection to be made to the MariaDB database.
+        mongo_db_conn : mongo_db_conn.connect
+            The connection to be made to the MongoDB database.
         '''
-        self.MAX_ITERATIONS = max_iterations
-        self.stomp_conn = stomp_conn
         self.mariadb_conn = mariadb_conn
-
-
-    def on_message(self, message):
-        self.acquired_messages.append(json.loads(str(message.body)))
-        print("collected a message: " + str(message.body))
-
-
-    def on_error(self, message):
-        print("Error was seen: " + str(message.body))
+        self.mongo_db_conn = mongo_db_conn
 
 
     def request_data(self, url_of_interest):
@@ -57,11 +55,11 @@ class Controller:
         '''
         try:
             # create an ID for the job
-            uuid_to_use = uuid.uuid4()
+            uuid_to_use = uuid.uuid1()
             # place the job on the queue
             self.mariadb_conn.execute(\
-                "INSERT INTO JOB_QUEUE (uuid, job_type, url_of_interest) " +\
-                "VALUES ('%s', 'STORE', '%s');" % (uuid_to_use, url_of_interest)\
+                "INSERT INTO JOB_QUEUE (uuid, url_of_interest) " +\
+                "VALUES ('%s', '%s');" % (uuid_to_use, url_of_interest)\
             )
             return uuid_to_use, True
         except Exception as e:
@@ -78,21 +76,5 @@ class Controller:
         uuid_to_query : string
             The uuid associated to the data of interest.
         '''
-        try:
-            # place job on queue
-            self.mariadb_conn.execute(\
-                "INSERT INTO JOB_QUEUE (uuid, job_type) " +\
-                "VALUES ('%s', 'RETRIEVE');" % (uuid_to_query)\
-            )
-            itr = 0
-            while itr < self.MAX_ITERATIONS:
-                # listen for message
-                for message in self.acquired_messages:
-                    if message["uuid"] == uuid_to_query:
-                        return message, True
-                # return after x iterations
-                itr += self.ITERATOR
-                time.sleep(self.SLEEP)
-        except Exception as e:
-            print("Error seen: " + str(e))
-        return None, False
+        results = mongo_db_conn[RESULTS][uuid_to_query]
+        return results, results is not None
