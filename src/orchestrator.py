@@ -48,7 +48,7 @@ class Orchestrator(stomp.ConnectionListener):
         worker_id = headers["worker_id"]
         successful = response["successful"]
         completed_time = str(datetime.datetime.now()).split(".")[0]
-        mariadb_conn_cursor.execute(self.update_data_worker_status % (0, "NULL", worker_id))
+        self.mariadb_conn_cursor.execute(self.update_data_worker_status % (0, "NULL", worker_id))
 
     def on_error(self, headers, message):
         '''
@@ -62,17 +62,17 @@ class Orchestrator(stomp.ConnectionListener):
         Sends a store or retrieve job, depending on what is available in the DB.
         '''
         try:
-            mariadb_conn_cursor.execute(self.find_most_recent_untasked_job)
-            for (uuid, url_of_interest) in mariadb_conn_cursor:
-                mariadb_conn_cursor.execute(self.find_untasked_data_worker)
-                for (resource_id) in mariadb_conn_cursor:
+            self.mariadb_conn_cursor.execute(self.find_most_recent_untasked_job)
+            for (uuid, url_of_interest) in self.mariadb_conn_cursor:
+                self.mariadb_conn_cursor.execute(self.find_untasked_data_worker)
+                for (resource_id) in self.mariadb_conn_cursor:
                     stomp.send(body="{\"uuid\":\"" + str(uuid) + "\", \"urlOfInterest\":\"" + str(url_of_interest) + "\"}", destination="/data-worker-" + resource_id)
-                    mariadb_conn_cursor.execute(self.update_data_worker_status % (str(uuid), resource_id))
+                    self.mariadb_conn_cursor.execute(self.update_data_worker_status % (str(uuid), resource_id))
         except Exception as e:
             print("Error seen: " + str(e))
 
 
-    def main_loop(self):
+    async def main_loop(self):
         '''
         This method runs continuously, continuing a modular flow within STURL.
         '''

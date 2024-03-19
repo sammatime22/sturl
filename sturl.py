@@ -1,16 +1,15 @@
 # The portion of the application that starts up threads and such.
 # sammatime22, 2024
-import threading
+import asyncio
 import yaml
 import sys
 import stomp
 import mariadb
-import mongodb
+import pymongo
 sys.path.append('src')
 from data_worker import DataWorker
 from orchestrator import Orchestrator
 from controller import Controller
-from interface import Interface
 
 CONFIG_LOCATION = "config/sturl_config.yaml"
 DATA_WORKERS = "data_workers"
@@ -19,11 +18,11 @@ NUM_OF_WORKERS = "num_of_workers"
 TIMEOUT = "timeout"
 INTERFACE = "Sturl Application"
 STOMP = "stomp"
-USER = "user"
-PASSWORD = "password"
+USER = "root"
+PASSWORD = "mariadbpw"
 DATA_WORKER_TOPIC_BASE = "data-worker-%d"
-MARIA_DB_IP = "192.0.2.1"
-MARIA_DB_PORT = "3306"
+MARIA_DB_IP = "0.0.0.0"
+MARIA_DB_PORT = "55000"
 MARIA_DB_DATABASE = "sturl"
 MONGO_DB_ADDRESS = "mongodb://localhost:27017"
 
@@ -32,10 +31,10 @@ def stomp_factory(listener, worker_number):
     '''
     Given a worker number, sets up a connection to receive jobs.
     '''
-    worker = stomp.Connection()
+    print("building connection for worker " + str(worker_number))
+    worker = stomp.Connection([('0.0.0.0', 63636)])
     worker.set_listener('', listener)
-    worker.start()
-    worker.connect(sturl_config[USER][PASSWORD], wait=True)
+    worker.connect(sturl_config[STOMP]["user"], sturl_config[STOMP]["password"], wait=False)
     worker.subscribe(destination=DATA_WORKER_TOPIC_BASE % worker_number, id=worker_number, ack='auto')
 
 
@@ -43,7 +42,7 @@ def maria_db_factory():
     '''
     Returns a connection cursor to mariadb
     '''
-    conn = mariadb.connect(user=USER, password=PASSWORD, host=MARIA_DB_IP, port=MARIA_DB_PORT, database=MARIA_DB_DATABASE)
+    conn = mariadb.connect(user=USER, password=PASSWORD, host=MARIA_DB_IP, port=int(MARIA_DB_PORT), database=MARIA_DB_DATABASE)
     return conn.cursor()
 
 
@@ -64,7 +63,7 @@ if __name__ == '__main__':
         stomp_factory(DataWorker(i, mongo_db_factory()), i)
         stomp_factory(orchestrat_or, i)
 
-    async orchestrat_or.run()
+    asyncio.run(orchestrat_or.main_loop())
 
     controll_er = Controller(maria_db_factory(), mongo_db_factory())
 
