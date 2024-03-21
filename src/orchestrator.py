@@ -36,7 +36,6 @@ class Orchestrator(stomp.ConnectionListener):
         ----------
         '''
         self.mariadb_conn_cursor = mariadb_conn_cursor
-        self.main_loop()
 
 
     def on_message(self, headers, message):
@@ -72,7 +71,7 @@ class Orchestrator(stomp.ConnectionListener):
             print("Error seen: " + str(e))
 
 
-    async def main_loop(self):
+    def main_loop(self):
         '''
         This method runs continuously, continuing a modular flow within STURL.
         '''

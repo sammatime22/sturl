@@ -42,6 +42,7 @@ class Controller():
         '''
         self.mariadb_conn = mariadb_conn
         self.mongo_db_conn = mongo_db_conn
+        print("Controller initialized")
 
 
     def request_data(self, url_of_interest):
