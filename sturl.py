@@ -1,6 +1,6 @@
 # The portion of the application that starts up threads and such.
 # sammatime22, 2024
-import asyncio
+import threading
 import yaml
 import sys
 import stomp
@@ -10,6 +10,9 @@ sys.path.append('src')
 from data_worker import DataWorker
 from orchestrator import Orchestrator
 from controller import Controller
+from flask import Flask, request
+from pprint import pprint
+
 
 CONFIG_LOCATION = "config/sturl_config.yaml"
 DATA_WORKERS = "data_workers"
@@ -43,6 +46,7 @@ def maria_db_factory():
     Returns a connection cursor to mariadb
     '''
     conn = mariadb.connect(user=USER, password=PASSWORD, host=MARIA_DB_IP, port=int(MARIA_DB_PORT), database=MARIA_DB_DATABASE)
+    conn.autocommit = True
     return conn.cursor()
 
 
@@ -59,15 +63,21 @@ if __name__ == '__main__':
 
     orchestrat_or = Orchestrator(maria_db_factory())
 
+    mariadb_cursor = maria_db_factory()
+
+    mariadb_cursor.execute("DELETE FROM DATA_WORKERS;")
+
     for i in range(0, sturl_config[DATA_WORKERS][NUM_OF_WORKERS]):
+        mariadb_cursor.execute("INSERT INTO DATA_WORKERS (resource_id, tasked) VALUES (%d, 0);" % i)
         stomp_factory(DataWorker(i, mongo_db_factory()), i)
         stomp_factory(orchestrat_or, i)
 
-    asyncio.run(orchestrat_or.main_loop())
+    orchestrator_thread = threading.Thread(target=orchestrat_or.main_loop)
+    orchestrator_thread.start()
 
     controll_er = Controller(maria_db_factory(), mongo_db_factory())
 
-    interface = Flask(self.INTERFACE)
+    interface = Flask(INTERFACE)
 
     @interface.route('/request', methods=['POST'])
     def request_data():
@@ -75,7 +85,7 @@ if __name__ == '__main__':
         Uses the URL provided in the POST request to kick off
         a job in the STURL backend.
         '''
-        return controll_er.request_data(request.form['url'])
+        return str(controll_er.request_data(request.form['url'], request.remote_addr))
 
     @interface.route('/response', methods=['GET'])
     def retrieve_data():
@@ -85,6 +95,3 @@ if __name__ == '__main__':
         return controll_er.retrieve_data(request.form['uuid'])
 
     interface.run()
-
-    print("Interface Activated")
-    print("STURL Started Healthily")

@@ -45,7 +45,7 @@ class Controller():
         print("Controller initialized")
 
 
-    def request_data(self, url_of_interest):
+    def request_data(self, url_of_interest, requesters_ip):
         '''
         This is the method used by the controller to request data for a particular URL.
 
@@ -53,14 +53,16 @@ class Controller():
         ----------
         url_of_interest : string
             The url to request to be queried.
+        requesters_ip : string
+            The url of the requester.
         '''
         try:
             # create an ID for the job
             uuid_to_use = uuid.uuid1()
             # place the job on the queue
             self.mariadb_conn.execute(\
-                "INSERT INTO JOB_QUEUE (uuid, url_of_interest) " +\
-                "VALUES ('%s', '%s');" % (uuid_to_use, url_of_interest)\
+                "INSERT INTO JOB_QUEUE (uuid, url_of_interest, inserter_ip) " +\
+                "VALUES ('%s', '%s', '%s');" % (uuid_to_use, url_of_interest, requesters_ip)\
             )
             return uuid_to_use, True
         except Exception as e:

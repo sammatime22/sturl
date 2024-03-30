@@ -7,7 +7,6 @@ CREATE TABLE JOB_QUEUE (
     url_of_interest varchar(500) NOT NULL,
     insert_time timestamp NOT NULL DEFAULT(current_timestamp),
     inserter_ip varchar(15) NOT NULL,
-    inserter_mac varchar(17) NOT NULL,
     completed boolean NOT NULL DEFAULT 0,
     complete_time timestamp NULL,
     tasked_resource varchar(36) NULL,
@@ -17,7 +16,7 @@ CREATE TABLE JOB_QUEUE (
 CREATE TABLE DATA_WORKERS (
     resource_id SMALLINT(4) NOT NULL,
     tasked boolean NOT NULL DEFAULT 0,
-    current_task varchar(36) NOT NULL,
+    current_task varchar(36) NULL,
     updated_at timestamp NOT NULL DEFAULT(current_timestamp),
     PRIMARY KEY (resource_id)
 );
