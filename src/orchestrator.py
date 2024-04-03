@@ -4,6 +4,7 @@ import datetime
 import json
 import stomp
 import time
+import sys
 
 class Orchestrator(stomp.ConnectionListener):
     '''
@@ -20,13 +21,18 @@ class Orchestrator(stomp.ConnectionListener):
     continue_running = True
 
     # finds the most recent job to task
-    find_most_recent_untasked_job = "SELECT uuid, url_of_interest FROM JOB_QUEUE WHERE tasked_resource = NULL ORDER BY insert_time LIMIT 1;"
+    find_most_recent_untasked_job = "SELECT uuid, url_of_interest FROM JOB_QUEUE WHERE tasked_resource is NULL ORDER BY insert_time LIMIT 1;"
 
     # finds an untasked data worker
-    find_untasked_data_worker = "SELECT resource_id FROM DATA WORKERS WHERE tasked = 0 ORDER BY free_since;"
+    find_untasked_data_worker = "SELECT resource_id FROM DATA_WORKERS WHERE tasked = 0 ORDER BY updated_at DESC LIMIT 1;"
 
     # updates a worker's status
     update_data_worker_status = "UPDATE DATA_WORKERS SET tasked=%d, current_task=%s, updated_at=NOW() WHERE resource_id=%d;"
+
+    # updates the job status
+    update_job_status = "UPDATE JOB_QUEUE SET completed=%d, complete_time=%s, tasked_resource=%d WHERE uuid=%s;"
+
+    stomp_connection = None
 
     def __init__(self,  mariadb_conn_cursor):
         '''
@@ -38,22 +44,31 @@ class Orchestrator(stomp.ConnectionListener):
         self.mariadb_conn_cursor = mariadb_conn_cursor
 
 
-    def on_message(self, headers, message):
+    def on_message(self, message):
         '''
         Pulls in messages for the Orchestrator
         '''
-        print("received a message " + str(message) + " with header " + str(headers))
+        # print(dir(message))
+        # print(message.headers)
+        if int(message.headers["subscription"]) == 10:
+            return
+        print("received a message " + str(message))
         response = json.loads(message)
-        worker_id = headers["worker_id"]
+        # worker_id = headers["worker_id"]
         successful = response["successful"]
         completed_time = str(datetime.datetime.now()).split(".")[0]
-        self.mariadb_conn_cursor.execute(self.update_data_worker_status % (0, "NULL", worker_id))
+        # self.mariadb_conn_cursor.execute(self.update_data_worker_status % (0, "NULL", worker_id))
+        # self.mariadb_conn_cursor.execute(self.update_job_status % (1, '"' + datetime.datetime.now() + '"', resource_id[0], '"' + str(uuid)) + '"')
 
-    def on_error(self, headers, message):
+    def on_error(self, message):
         '''
         Handles message errors for the Orchestrator
         '''
-        print("could not interperet message " + str(message) + " with header " + str(headers))
+        print("could not interperet message " + str(message))
+
+
+    def set_stomp_connection(self, stomp_connection):
+        self.stomp_connection = stomp_connection
 
 
     def check_and_send_job(self):
@@ -62,13 +77,27 @@ class Orchestrator(stomp.ConnectionListener):
         '''
         try:
             self.mariadb_conn_cursor.execute(self.find_most_recent_untasked_job)
-            for (uuid, url_of_interest) in self.mariadb_conn_cursor:
-                self.mariadb_conn_cursor.execute(self.find_untasked_data_worker)
-                for (resource_id) in self.mariadb_conn_cursor:
-                    stomp.send(body="{\"uuid\":\"" + str(uuid) + "\", \"urlOfInterest\":\"" + str(url_of_interest) + "\"}", destination="/data-worker-" + resource_id)
-                    self.mariadb_conn_cursor.execute(self.update_data_worker_status % (str(uuid), resource_id))
+            untasked_job_row = self.mariadb_conn_cursor.fetchall()
+            # print(self.mariadb_conn_cursor.rowcount)
+            if len(untasked_job_row) > 0:
+                for (uuid, url_of_interest) in untasked_job_row:
+                    self.mariadb_conn_cursor.execute(self.find_untasked_data_worker)
+                    untasked_data_worker = self.mariadb_conn_cursor.fetchall()
+                    if len(untasked_data_worker) > 0:
+                        for (resource_id) in untasked_data_worker:
+                            # print(resource_id[0])
+                            # print(dir(self.stomp_connection))
+                            self.stomp_connection.send("/data-worker", "{\"uuid\":\"" + str(uuid) + "\", \"urlOfInterest\":\"" + str(url_of_interest) + "\", \"dataWorker\":" + str(resource_id[0]) + "}")
+                            # print(type(resource_id[0]))
+                            # print(self.update_data_worker_status % (1, str(uuid), resource_id[0]))
+                            self.mariadb_conn_cursor.execute(self.update_data_worker_status % (1, '"' + str(uuid) + '"', resource_id[0]))
+                            # print("rock n roll")
+                            self.mariadb_conn_cursor.execute(self.update_job_status % (0, "NULL", resource_id[0], '"' + str(uuid) + '"'))
+                            # print("need something to sing about")
         except Exception as e:
-            print("Error seen: " + str(e))
+            print("Error seeen: " + str(e))
+            typee, obj, trace = sys.exc_info()
+            print(trace.tb_lineno)
 
 
     def main_loop(self):

@@ -23,7 +23,7 @@ INTERFACE = "Sturl Application"
 STOMP = "stomp"
 USER = "root"
 PASSWORD = "mariadbpw"
-DATA_WORKER_TOPIC_BASE = "data-worker-%d"
+DATA_WORKER_TOPIC_BASE = "/data-worker"
 MARIA_DB_IP = "0.0.0.0"
 MARIA_DB_PORT = "55000"
 MARIA_DB_DATABASE = "sturl"
@@ -35,10 +35,11 @@ def stomp_factory(listener, worker_number):
     Given a worker number, sets up a connection to receive jobs.
     '''
     print("building connection for worker " + str(worker_number))
-    worker = stomp.Connection([('0.0.0.0', 63636)])
+    worker = stomp.Connection([('0.0.0.0', 63636)], heartbeats=(4000, 4000))
     worker.set_listener('', listener)
-    worker.connect(sturl_config[STOMP]["user"], sturl_config[STOMP]["password"], wait=False)
-    worker.subscribe(destination=DATA_WORKER_TOPIC_BASE % worker_number, id=worker_number, ack='auto')
+    worker.connect(sturl_config[STOMP]["user"], sturl_config[STOMP]["password"], wait=True, headers = {'client-id': 'clientname'})
+    worker.subscribe(destination=DATA_WORKER_TOPIC_BASE, id=worker_number)
+    listener.set_stomp_connection(worker)
 
 
 def maria_db_factory():
@@ -66,11 +67,13 @@ if __name__ == '__main__':
     mariadb_cursor = maria_db_factory()
 
     mariadb_cursor.execute("DELETE FROM DATA_WORKERS;")
+    mariadb_cursor.execute("DELETE FROM JOB_QUEUE;")
+
+    stomp_factory(orchestrat_or, sturl_config[DATA_WORKERS][NUM_OF_WORKERS])
 
     for i in range(0, sturl_config[DATA_WORKERS][NUM_OF_WORKERS]):
         mariadb_cursor.execute("INSERT INTO DATA_WORKERS (resource_id, tasked) VALUES (%d, 0);" % i)
         stomp_factory(DataWorker(i, mongo_db_factory()), i)
-        stomp_factory(orchestrat_or, i)
 
     orchestrator_thread = threading.Thread(target=orchestrat_or.main_loop)
     orchestrator_thread.start()

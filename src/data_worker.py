@@ -34,6 +34,8 @@ class DataWorker(stomp.ConnectionListener):
 
     mongo_db_conn = None
 
+    stomp_connection = None
+
     def __init__(self, worker_number, mongo_db_conn):
         '''
         Initializes the Data Worker
@@ -45,34 +47,42 @@ class DataWorker(stomp.ConnectionListener):
         self.mongo_db_conn = mongo_db_conn
 
 
-    def on_message(self, headers, message):
+    def on_message(self, message):
         '''
         Pulls in messages for the Data Worker
         '''
-        print("received a message " + str(message) + " with header " + str(headers))
-        data = pull_from_web(json.loads(str(message)))
+        message_body = json.loads(str(message.body))
+        if message_body["dataWorker"] != self.worker_number:
+            return
+        print("got a message for " + str(message_body["dataWorker"]))
+        data = self.pull_from_web(message_body["urlOfInterest"])
+
         if data is not None:
-            report = build_report(data)
+            report = self.build_report(data)
             if report is not None:
-                if insert_report(report):
-                    stomp.send(body="sucessfully completed job " + str(data["uuid"]))
+                if self.insert_report(message_body["uuid"], report):
+                    self.stomp_connection.send(body="sucessfully completed job " + str(data["uuid"]))
                 else:
-                    stomp.send(body="could not insert report for job " + str(data["uuid"]))
+                    self.stomp_connection.send(body="could not insert report for job " + str(data["uuid"]))
             else:
-                stomp.send(body="unable to interperet data for job " + str(data["uuid"]))
+                self.stomp_connection.send(body="unable to interperet data for job " + str(data["uuid"]))
         else:
-            stomp.send(body="unable to interperet data for job " + str(data["uuid"]))
-        insert_report(report)
+            self.stomp_connection.send(body="unable to interperet data for job " + str(data["uuid"]))
+        # self.insert_report(report)
 
 
-    def on_error(self, headers, message):
+    def on_error(self, message):
         '''
         Handles message errors for the Data Worker
         '''
-        print("could not interperet message " + str(message) + " with header " + str(headers))
+        print("could not interperet message " + str(message))
 
 
-    def pull_from_web(url):
+    def set_stomp_connection(self, stomp_connection):
+        self.stomp_connection = stomp_connection
+
+
+    def pull_from_web(self, url):
         '''
         Pulls data from the web
         '''
@@ -83,61 +93,64 @@ class DataWorker(stomp.ConnectionListener):
             return None
 
 
-    def build_report(data):
+    def build_report(self, data):
         '''
         Builds the report to send back based on the data recieved
         '''
         try:
+            print(data)
+            print(dir(data))
             report = {}
             report[self.FINAL_DESTINATION] = data.url
             report[self.HAD_REDIRECT] = data.history
             report[self.STATUS_CODE] = data.status_code
             report[self.COOKIES] = data.cookies
             report[self.HEADER_CONTENT] = data.headers
-            report[self.LINKS_ON_SITE] = data.linksOnSite
-            report[self.POTENTIAL_JAVASCRIPT_FUNCTIONS] = extract_functions(data.text)
+            report[self.LINKS_ON_SITE] = data.links
+            report[self.POTENTIAL_JAVASCRIPT_FUNCTIONS] = self.extract_functions(data.text)
             return report
         except Exception as e:
             print(e)
             return None
 
 
-    def extract_functions(page_content):
+    def extract_functions(self, page_content):
         '''
         Attempts to extract functions from the webpage content
         '''
         try:
             potential_functions = []
-            function_indeces = [m.start() for m in re.finditer(self.FUNCTION, page_content.text)]
+            function_indeces = [m.start() for m in re.finditer(self.FUNCTION, page_content)]
             for index_of_interest in function_indeces:
                 start_pos = index_of_interest
                 end_pos = index_of_interest
-                current_char = page_content.text[start_pos]
-                while current_char != OPEN_BRACKET:
+                current_char = page_content[start_pos]
+                while current_char != self.OPEN_BRACKET:
                     start_pos = start_pos + 1
                     end_pos = end_pos + 1
-                    current_char = page_content.text[start_pos]
+                    current_char = page_content[start_pos]
                 bracket_count = 1
                 while bracket_count != 0:
                     end_pos = end_pos + 1
-                    current_char = page_content.text[end_pos]
-                    if current_char == OPEN_BRACKET:
+                    current_char = page_content[end_pos]
+                    if current_char == self.OPEN_BRACKET:
                         bracket_count = bracket_count + 1
-                    elif current_char == CLOSE_BRACKET:
+                    elif current_char == self.CLOSE_BRACKET:
                         bracket_count = bracket_count - 1
-                potential_functions.append(page_content.text[start_pos:end_pos])
+                potential_functions.append(page_content[start_pos:end_pos])
             return potential_functions
         except Exception as e:
-            print(e)
+            print("hiphop" + str(e))
             return None
 
 
-    def insert_report(uuid, data):
+    def insert_report(self, uuid, data):
         '''
         Inserts the report into MongoDB
         '''
         try:
-            my_collection = mongo_db_conn[uuid]
+            print(data)
+            my_collection = self.mongo_db_conn[uuid]
             my_collection.insert_one(data)
             return True
         except Exception as e:
