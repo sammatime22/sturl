@@ -52,7 +52,7 @@ class DataWorker(stomp.ConnectionListener):
         Pulls in messages for the Data Worker
         '''
         message_body = json.loads(str(message.body))
-        if message_body["dataWorker"] != self.worker_number:
+        if (message_body.get("dataWorker") is None) or (message_body["dataWorker"] != self.worker_number):
             return
         print("got a message for " + str(message_body["dataWorker"]))
         data = self.pull_from_web(message_body["urlOfInterest"])
@@ -61,13 +61,13 @@ class DataWorker(stomp.ConnectionListener):
             report = self.build_report(data)
             if report is not None:
                 if self.insert_report(message_body["uuid"], report):
-                    self.stomp_connection.send(body="sucessfully completed job " + str(data["uuid"]))
+                    self.stomp_connection.send("/data-worker", "{\"uuid\":\"" + str(message_body["uuid"]) + "\", \"successful\": true, \"dataWorkerResponsible\": " + str(self.worker_number) + "}")
                 else:
-                    self.stomp_connection.send(body="could not insert report for job " + str(data["uuid"]))
+                    self.stomp_connection.send("/data-worker", "{\"uuid\":\"" + str(message_body["uuid"]) + "\", \"successful\": false, \"dataWorkerResponsible\": " + str(self.worker_number) + "}")
             else:
-                self.stomp_connection.send(body="unable to interperet data for job " + str(data["uuid"]))
+                self.stomp_connection.send("/data-worker", "{\"uuid\":\"" + str(message_body["uuid"]) + "\", \"successful\": false, \"dataWorkerResponsible\": " + str(self.worker_number) + "}")
         else:
-            self.stomp_connection.send(body="unable to interperet data for job " + str(data["uuid"]))
+            self.stomp_connection.send("/data-worker", "{\"uuid\":\"" + str(message_body["uuid"]) + "\", \"successful\": false, \"dataWorkerResponsible\": " + str(self.worker_number) + "}")
         # self.insert_report(report)
 
 
@@ -101,12 +101,12 @@ class DataWorker(stomp.ConnectionListener):
             print(data)
             print(dir(data))
             report = {}
-            report[self.FINAL_DESTINATION] = data.url
-            report[self.HAD_REDIRECT] = data.history
-            report[self.STATUS_CODE] = data.status_code
-            report[self.COOKIES] = data.cookies
-            report[self.HEADER_CONTENT] = data.headers
-            report[self.LINKS_ON_SITE] = data.links
+            report[self.FINAL_DESTINATION] = str(data.url)
+            report[self.HAD_REDIRECT] = str(data.history)
+            report[self.STATUS_CODE] = str(data.status_code)
+            report[self.COOKIES] = str(data.cookies)
+            report[self.HEADER_CONTENT] = str(data.headers)
+            report[self.LINKS_ON_SITE] = str(data.links)
             report[self.POTENTIAL_JAVASCRIPT_FUNCTIONS] = self.extract_functions(data.text)
             return report
         except Exception as e:
@@ -150,7 +150,9 @@ class DataWorker(stomp.ConnectionListener):
         '''
         try:
             print(data)
-            my_collection = self.mongo_db_conn[uuid]
+            print(dir(self.mongo_db_conn))
+            sturl_db = self.mongo_db_conn.sturl_db
+            my_collection = sturl_db[uuid]
             my_collection.insert_one(data)
             return True
         except Exception as e:

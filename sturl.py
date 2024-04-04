@@ -27,7 +27,7 @@ DATA_WORKER_TOPIC_BASE = "/data-worker"
 MARIA_DB_IP = "0.0.0.0"
 MARIA_DB_PORT = "55000"
 MARIA_DB_DATABASE = "sturl"
-MONGO_DB_ADDRESS = "mongodb://localhost:27017"
+MONGO_DB_ADDRESS = "mongodb://docker:mongopw@localhost:55003"
 
 
 def stomp_factory(listener, worker_number):
@@ -95,6 +95,6 @@ if __name__ == '__main__':
         '''
         A long-poll to pick up the report from MongoDB.
         '''
-        return controll_er.retrieve_data(request.form['uuid'])
+        return controll_er.collect_report(request.form['uuid'])
 
     interface.run()

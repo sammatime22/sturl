@@ -50,15 +50,20 @@ class Orchestrator(stomp.ConnectionListener):
         '''
         # print(dir(message))
         # print(message.headers)
-        if int(message.headers["subscription"]) == 10:
+        message_body = json.loads(str(message.body))
+        if message_body.get("dataWorker") is not None:
             return
-        print("received a message " + str(message))
-        response = json.loads(message)
-        # worker_id = headers["worker_id"]
-        successful = response["successful"]
+        print("received a message " + str(message_body))
+        print(str(message))
+        worker_id = int(message_body["dataWorkerResponsible"])
+        successful = message_body["successful"]
         completed_time = str(datetime.datetime.now()).split(".")[0]
-        # self.mariadb_conn_cursor.execute(self.update_data_worker_status % (0, "NULL", worker_id))
-        # self.mariadb_conn_cursor.execute(self.update_job_status % (1, '"' + datetime.datetime.now() + '"', resource_id[0], '"' + str(uuid)) + '"')
+        uuid = message_body["uuid"]
+        self.mariadb_conn_cursor.execute(self.update_data_worker_status % (0, "NULL", worker_id))
+        print(self.update_data_worker_status % (0, "NULL", worker_id))
+        self.mariadb_conn_cursor.execute(self.update_job_status % (1, '"' + completed_time + '"', worker_id, '"' + str(uuid) + '"'))
+        print(self.update_job_status % (1, '"' + completed_time + '"', worker_id, '"' + str(uuid) + '"'))
+
 
     def on_error(self, message):
         '''
