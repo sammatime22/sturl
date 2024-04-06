@@ -68,7 +68,6 @@ class DataWorker(stomp.ConnectionListener):
                 self.stomp_connection.send("/data-worker", "{\"uuid\":\"" + str(message_body["uuid"]) + "\", \"successful\": false, \"dataWorkerResponsible\": " + str(self.worker_number) + "}")
         else:
             self.stomp_connection.send("/data-worker", "{\"uuid\":\"" + str(message_body["uuid"]) + "\", \"successful\": false, \"dataWorkerResponsible\": " + str(self.worker_number) + "}")
-        # self.insert_report(report)
 
 
     def on_error(self, message):
@@ -98,8 +97,6 @@ class DataWorker(stomp.ConnectionListener):
         Builds the report to send back based on the data recieved
         '''
         try:
-            print(data)
-            print(dir(data))
             report = {}
             report[self.FINAL_DESTINATION] = str(data.url)
             report[self.HAD_REDIRECT] = str(data.history)
@@ -140,7 +137,7 @@ class DataWorker(stomp.ConnectionListener):
                 potential_functions.append(page_content[start_pos:end_pos])
             return potential_functions
         except Exception as e:
-            print("hiphop" + str(e))
+            print(e)
             return None
 
 
@@ -149,8 +146,6 @@ class DataWorker(stomp.ConnectionListener):
         Inserts the report into MongoDB
         '''
         try:
-            print(data)
-            print(dir(self.mongo_db_conn))
             sturl_db = self.mongo_db_conn.sturl_db
             my_collection = sturl_db[uuid]
             my_collection.insert_one(data)

@@ -11,7 +11,6 @@ from data_worker import DataWorker
 from orchestrator import Orchestrator
 from controller import Controller
 from flask import Flask, request
-from pprint import pprint
 
 
 CONFIG_LOCATION = "config/sturl_config.yaml"

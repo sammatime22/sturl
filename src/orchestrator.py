@@ -48,21 +48,16 @@ class Orchestrator(stomp.ConnectionListener):
         '''
         Pulls in messages for the Orchestrator
         '''
-        # print(dir(message))
-        # print(message.headers)
         message_body = json.loads(str(message.body))
         if message_body.get("dataWorker") is not None:
             return
         print("received a message " + str(message_body))
-        print(str(message))
         worker_id = int(message_body["dataWorkerResponsible"])
         successful = message_body["successful"]
         completed_time = str(datetime.datetime.now()).split(".")[0]
         uuid = message_body["uuid"]
         self.mariadb_conn_cursor.execute(self.update_data_worker_status % (0, "NULL", worker_id))
-        print(self.update_data_worker_status % (0, "NULL", worker_id))
         self.mariadb_conn_cursor.execute(self.update_job_status % (1, '"' + completed_time + '"', worker_id, '"' + str(uuid) + '"'))
-        print(self.update_job_status % (1, '"' + completed_time + '"', worker_id, '"' + str(uuid) + '"'))
 
 
     def on_error(self, message):
@@ -83,26 +78,17 @@ class Orchestrator(stomp.ConnectionListener):
         try:
             self.mariadb_conn_cursor.execute(self.find_most_recent_untasked_job)
             untasked_job_row = self.mariadb_conn_cursor.fetchall()
-            # print(self.mariadb_conn_cursor.rowcount)
             if len(untasked_job_row) > 0:
                 for (uuid, url_of_interest) in untasked_job_row:
                     self.mariadb_conn_cursor.execute(self.find_untasked_data_worker)
                     untasked_data_worker = self.mariadb_conn_cursor.fetchall()
                     if len(untasked_data_worker) > 0:
                         for (resource_id) in untasked_data_worker:
-                            # print(resource_id[0])
-                            # print(dir(self.stomp_connection))
                             self.stomp_connection.send("/data-worker", "{\"uuid\":\"" + str(uuid) + "\", \"urlOfInterest\":\"" + str(url_of_interest) + "\", \"dataWorker\":" + str(resource_id[0]) + "}")
-                            # print(type(resource_id[0]))
-                            # print(self.update_data_worker_status % (1, str(uuid), resource_id[0]))
                             self.mariadb_conn_cursor.execute(self.update_data_worker_status % (1, '"' + str(uuid) + '"', resource_id[0]))
-                            # print("rock n roll")
                             self.mariadb_conn_cursor.execute(self.update_job_status % (0, "NULL", resource_id[0], '"' + str(uuid) + '"'))
-                            # print("need something to sing about")
         except Exception as e:
-            print("Error seeen: " + str(e))
-            typee, obj, trace = sys.exc_info()
-            print(trace.tb_lineno)
+            print(e)
 
 
     def main_loop(self):
@@ -117,4 +103,4 @@ class Orchestrator(stomp.ConnectionListener):
                 self.check_and_send_job()
                 time.sleep(self.SLEEP)
             except Exception as e:
-                print("Error seen: " + str(e))
+                print(e)
