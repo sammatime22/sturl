@@ -95,6 +95,6 @@ if __name__ == '__main__':
         '''
         A long-poll to pick up the report from MongoDB.
         '''
-        return controll_er.collect_report(request.form['uuid'])
+        return controll_er.collect_report(request.args['uuid'])
 
     interface.run()

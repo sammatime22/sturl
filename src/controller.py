@@ -10,7 +10,7 @@ class Controller():
     the remainder of the resources in the backend via various means.
     '''
 
-    RESULTS = "results"
+    RESULTS = "sturl_db"
 
     # A 1s iterator, to not be overwritten
     ITERATOR = 1
@@ -79,5 +79,8 @@ class Controller():
         uuid_to_query : string
             The uuid associated to the data of interest.
         '''
-        results = mongo_db_conn[RESULTS][uuid_to_query]
-        return results, results is not None
+        sturl_db = self.mongo_db_conn.sturl_db
+        results_col = sturl_db[uuid_to_query]
+        results = results_col.find_one()
+        print(results)
+        return str(results), results is not None
