@@ -1,0 +1,10 @@
+# Sample parameters for STURL
+# sammatime22, 2024
+# Data Workers Config
+data_workers: &id001
+  num_of_workers: 10
+
+# Stomp Config
+stomp:
+  user: 'artemis'
+  password: 'artemis'
